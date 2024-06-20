@@ -137,7 +137,6 @@ def main(argv: Optional[List[str]] = None):
                 args.SRC if args.SRC.is_absolute() else img_workdir(iid) / args.SRC
             )
             dst_path = args.DST or args.SRC
-            dst_path.mkdir(parents=True, exist_ok=True)
 
             cid = with_(tmp_container(iid, args.cleanup))
             sp.check_call(["docker", "cp", f"{cid}:{src_path}", dst_path])

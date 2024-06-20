@@ -29,34 +29,43 @@ def run_py(*args: str):
 
 
 class Tests(unittest.TestCase):
-    def test_build_arg(self):
-        with ExitStack() as stack:
-            src = "foo.txt"
-            cnt = "foo bar baz"
-            ctx = stack.enter_context(docker_dir(src, cnt))
-            dst = stack.enter_context(tempfile.TemporaryDirectory())
-            run_py("-b", ctx, src, f"{dst}/{src}")
+    def assertDstEqualsSrc(self):
+        self.assertEqual(
+            Path(self.dst, self.src).read_bytes(), Path(self.ctx, self.src).read_bytes()
+        )
 
-    def test_image_arg(self):
+    def test_build(self):
         with ExitStack() as stack:
-            src = "preexisting.txt"
-            cnt = "hello, world!"
-            ctx = stack.enter_context(docker_dir(src, cnt))
-            img = sp.check_output(["docker", "build", "-q", ctx], text=True).strip()
-            dst = stack.enter_context(tempfile.TemporaryDirectory())
-            run_py("-i", img, src, f"{dst}/{src}")
+            self.src = "foo.txt"
+            self.cnt = "foo bar baz"
+            self.ctx = stack.enter_context(docker_dir(self.src, self.cnt))
+            self.dst = stack.enter_context(tempfile.TemporaryDirectory())
+            run_py("-b", self.ctx, self.src, f"{self.dst}/{self.src}")
+            self.assertDstEqualsSrc()
+
+    def test_image(self):
+        with ExitStack() as stack:
+            self.src = "preexisting.txt"
+            self.cnt = "hello, world!"
+            self.ctx = stack.enter_context(docker_dir(self.src, self.cnt))
+            self.img = sp.check_output(
+                ["docker", "build", "-q", self.ctx], text=True
+            ).strip()
+            self.dst = stack.enter_context(tempfile.TemporaryDirectory())
+            run_py("-i", self.img, self.src, f"{self.dst}/{self.src}")
+            self.assertDstEqualsSrc()
 
     def test_no_cleanup_arg_imgs(self):
         imgs_cmd = ["docker", "images", "-q"]
         imgs_before = docker_ids(imgs_cmd)
-        self.test_build_arg()
+        self.test_build()
         imgs_after = docker_ids(imgs_cmd)
         self.assertSetEqual(imgs_before, imgs_after)
 
     def test_no_cleanup_arg_cnts(self):
         cnts_cmd = ["docker", "ps", "-q"]
         cnts_before = docker_ids(cnts_cmd)
-        self.test_build_arg()
+        self.test_build()
         cnts_after = docker_ids(cnts_cmd)
         self.assertSetEqual(cnts_before, cnts_after)
 
