@@ -17,7 +17,7 @@ pipx install docker-image-cp
   print("```")
 ]]]-->
 ```
-usage: docker-image-cp [-h] (-i IID | -b CTX) SRC [DST]
+usage: docker-image-cp [-h] (-i IID | -b CTX) [-C] SRC [DST]
 
 positional arguments:
   SRC                  Source path to copy from within the image. May be relative, in which case
@@ -27,8 +27,10 @@ positional arguments:
 
 options:
   -h, --help           show this help message and exit
-  -i IID, --image IID  ID of a pre-existing image to copy from
-  -b CTX, --build CTX  Context path for building an image to copy from
+  -i IID, --image IID  ID of a pre-existing image to copy from.
+  -b CTX, --build CTX  Context path for building an image to copy from.
+  -C, --no-cleanup     Don't delete image or container when done. (Default is to always remove
+                       container, and attempt to remove image if it was built by this command.)
 
 ```
-<!--[[[end]]] (checksum: d2f16dd1f787eaad94354d2111d081d4)-->
+<!--[[[end]]] (checksum: bbc078e4b09d4ed290288b10398ddf04)-->

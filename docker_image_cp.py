@@ -16,7 +16,7 @@ from typing import Any, Iterator, List, Optional, Tuple
 
 
 @contextmanager
-def tmp_image(buildctx: Path) -> Iterator[str]:
+def tmp_image(buildctx: Path, cleanup: bool = True) -> Iterator[str]:
     with tempfile.TemporaryDirectory() as tmp:
         iidf = Path(tmp, "iid")
         sp.check_call(["docker", "build", f"--iidfile={iidf}", buildctx])
@@ -24,17 +24,19 @@ def tmp_image(buildctx: Path) -> Iterator[str]:
         try:
             yield iid
         finally:
-            # attempt to remove the image, but swallow failure
-            sp.run(["docker", "rmi", iid])
+            if cleanup:
+                # attempt to remove the image, but swallow failure
+                sp.run(["docker", "rmi", iid])
 
 
 @contextmanager
-def tmp_container(iid: str) -> Iterator[str]:
+def tmp_container(iid: str, cleanup: bool = True) -> Iterator[str]:
     cid = sp.check_output(["docker", "create", iid], text=True).strip()
     try:
         yield cid
     finally:
-        sp.check_call(["docker", "rm", cid])
+        if cleanup:
+            sp.check_call(["docker", "rm", cid])
 
 
 def img_workdir(iid: str) -> Path:
@@ -60,7 +62,7 @@ class Args:
             opts=("-i", "--image"),
             exgroup="image",
             metavar="IID",
-            help="ID of a pre-existing image to copy from",
+            help="ID of a pre-existing image to copy from.",
         )
     )
     build: Path = field(
@@ -68,8 +70,17 @@ class Args:
             opts=("-b", "--build"),
             exgroup="image",
             metavar="CTX",
-            help="Context path for building an image to copy from",
+            help="Context path for building an image to copy from.",
         )
+    )
+    cleanup: bool = field(
+        metadata=dict(
+            opts=("-C", "--no-cleanup"),
+            dest="cleanup",
+            action="store_false",
+            default=True,
+            help="Don't delete image or container when done. (Default is to always remove container, and attempt to remove image if it was built by this command.)",
+        ),
     )
 
     def __post_init__(self):
@@ -89,7 +100,12 @@ class Args:
             meta = dict(fld.metadata)
             (grps[meta.pop("exgroup")] if "exgroup" in meta else parser).add_argument(
                 *(meta.pop("opts") if "opts" in meta else [fld.name]),
-                type=fld.type,
+                **(
+                    dict(type=fld.type)
+                    # these actions complain if you give them a "type" arg 🙄
+                    if meta.get("action") not in ("store_true", "store_false")
+                    else {}
+                ),
                 **meta,
             )
         try:
@@ -113,7 +129,7 @@ def main(argv: Optional[List[str]] = None):
 
             if not (iid := args.image):
                 assert args.build
-                iid = with_(tmp_image(args.build))
+                iid = with_(tmp_image(args.build, args.cleanup))
 
             assert args.SRC
             src_path = (
@@ -121,7 +137,7 @@ def main(argv: Optional[List[str]] = None):
             )
             dst_path = args.DST or args.SRC
 
-            cid = with_(tmp_container(iid))
+            cid = with_(tmp_container(iid, args.cleanup))
             sp.check_call(["docker", "cp", f"{cid}:{src_path}", dst_path])
 
         except sp.CalledProcessError as e:
