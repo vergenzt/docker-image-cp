@@ -16,10 +16,10 @@ from typing import Any, Iterator, List, Optional, Tuple
 
 
 @contextmanager
-def tmp_image(buildctx: Path, cleanup: bool = True) -> Iterator[str]:
+def tmp_image(buildctx: Path, *args: str, cleanup: bool = True) -> Iterator[str]:
     with tempfile.TemporaryDirectory() as tmp:
         iidf = Path(tmp, "iid")
-        sp.check_call(["docker", "build", f"--iidfile={iidf}", buildctx])
+        sp.check_call(["docker", "build", f"--iidfile={iidf}", *args, buildctx])
         iid = iidf.read_text()
         try:
             yield iid
@@ -73,6 +73,16 @@ class Args:
             exgroup="image",
             metavar="CTX",
             help="Context path for building an image to copy from.",
+        )
+    )
+    build_args: List[str] = field(
+        metadata=dict(
+            opts=("-B", "--build-args"),
+            metavar="ARGS",
+            type=None,
+            action="append",
+            default=[],
+            help="Additional arg(s) to pass to `docker build` if using -b flag.",
         )
     )
     cleanup: bool = field(
@@ -129,7 +139,9 @@ def main(argv: Optional[List[str]] = None):
 
             if not (iid := args.image):
                 assert args.build
-                iid = with_(tmp_image(args.build, args.cleanup))
+                iid = with_(
+                    tmp_image(args.build, *args.build_args, cleanup=args.cleanup)
+                )
 
             assert args.SRC
             src_path = (

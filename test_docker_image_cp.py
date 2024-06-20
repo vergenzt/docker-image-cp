@@ -43,6 +43,24 @@ class Tests(unittest.TestCase):
             run_py("-b", self.ctx, self.src, f"{self.dst}/{self.src}")
             self.assertDstEqualsSrc()
 
+    def test_build_with_args(self):
+        with ExitStack() as stack:
+            self.src = "foo.txt"
+            self.cnt = "foo bar baz"
+            self.ctx = stack.enter_context(docker_dir(self.src, self.cnt))
+            Path(self.ctx, "Dockerfile").rename(
+                df := Path(self.ctx, "Dockerfile.renamed")
+            )
+            self.dst = stack.enter_context(tempfile.TemporaryDirectory())
+            run_py(
+                "-b",
+                self.ctx,
+                f"-B-f{df}",
+                self.src,
+                f"{self.dst}/{self.src}",
+            )
+            self.assertDstEqualsSrc()
+
     def test_image(self):
         with ExitStack() as stack:
             self.src = "preexisting.txt"
