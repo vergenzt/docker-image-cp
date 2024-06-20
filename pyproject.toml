@@ -1,0 +1,16 @@
+[tool.poetry]
+name = "docker-image-cp"
+version = "0.1.0"
+description = "Command line utility to copy files out of a Docker image"
+authors = ["Tim Vergenz <vergenzt@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.09"
+
+[tool.poetry.scripts]
+docker-image-cp = "docker_image_cp:main"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
