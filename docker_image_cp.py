@@ -7,6 +7,7 @@ import json
 import shlex
 import subprocess as sp
 import sys
+import tarfile
 import tempfile
 from collections import defaultdict
 from contextlib import ExitStack, contextmanager
@@ -139,6 +140,16 @@ def main(argv: Optional[List[str]] = None):
 
             cid = with_(tmp_container(iid, args.cleanup))
             sp.check_call(["docker", "cp", f"{cid}:{src_path}", dst_path])
+
+            # docker cp seems to be yielding tar format even for single files 🤔
+            # so extract it if so.
+            if tarfile.is_tarfile(dst_path):
+                with tarfile.open(dst_path) as dst_tar:
+                    assert dst_tar.getnames() == [dst_path.name]
+                    dst_io = dst_tar.extractfile(dst_path.name)
+                    assert dst_io
+                    dst_bytes = dst_io.read()
+                dst_path.write_bytes(dst_bytes)
 
         except sp.CalledProcessError as e:
             sys.exit(e.returncode)
