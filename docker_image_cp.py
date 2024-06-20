@@ -41,7 +41,7 @@ def tmp_container(iid: str, cleanup: bool = True) -> Iterator[str]:
 
 
 def img_workdir(iid: str) -> Path:
-    info = json.loads(sp.check_output(["docker", "inspect", iid]))
+    info: Any = json.loads(sp.check_output(["docker", "inspect", iid]))
     return Path(info[0]["Config"]["WorkingDir"])
 
 
@@ -137,19 +137,22 @@ def main(argv: Optional[List[str]] = None):
                 args.SRC if args.SRC.is_absolute() else img_workdir(iid) / args.SRC
             )
             dst_path = args.DST or args.SRC
+            dst_path.mkdir(parents=True, exist_ok=True)
 
             cid = with_(tmp_container(iid, args.cleanup))
             sp.check_call(["docker", "cp", f"{cid}:{src_path}", dst_path])
 
             # docker cp seems to be yielding tar format even for single files 🤔
             # so extract it if so.
-            if tarfile.is_tarfile(dst_path):
+            try:
                 with tarfile.open(dst_path) as dst_tar:
                     assert dst_tar.getnames() == [dst_path.name]
                     dst_io = dst_tar.extractfile(dst_path.name)
                     assert dst_io
                     dst_bytes = dst_io.read()
                 dst_path.write_bytes(dst_bytes)
+            except (AssertionError, IsADirectoryError, tarfile.TarError):
+                pass
 
         except sp.CalledProcessError as e:
             sys.exit(e.returncode)
