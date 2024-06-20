@@ -49,11 +49,13 @@ def img_workdir(iid: str) -> Path:
 class Args:
     SRC: Path = field(
         metadata=dict(
-            help="Source path to copy from within the image. May be relative, in which case it's relative to the image's workdir."
+            dest=None,  # positional args can't specify dest
+            help="Source path to copy from within the image. May be relative, in which case it's relative to the image's workdir.",
         )
     )
     DST: Path = field(
         metadata=dict(
+            dest=None,  # positional args can't specify dest
             nargs="?",
             help="Dest path on host to copy to. Defaults to SRC if SRC is relative, else DST is required.",
         )
@@ -77,8 +79,8 @@ class Args:
     cleanup: bool = field(
         metadata=dict(
             opts=("-C", "--no-cleanup"),
-            dest="cleanup",
             action="store_false",
+            type=None,
             default=True,
             help="Don't delete image or container when done. (Default is to always remove container, and attempt to remove image if it was built by this command.)",
         ),
@@ -93,21 +95,19 @@ class Args:
     @classmethod
     def from_args(cls, argv: Optional[List[str]] = None):
         parser = argparse.ArgumentParser()
-        grps = defaultdict(
+        groups = defaultdict(
             lambda: parser.add_mutually_exclusive_group(required=True),
             dict[str, Any](),  # for type inference
         )
         for fld in fields(cls):
             meta = dict(fld.metadata)
-            (grps[meta.pop("exgroup")] if "exgroup" in meta else parser).add_argument(
-                *(meta.pop("opts") if "opts" in meta else [fld.name]),
-                **(
-                    dict(type=fld.type)
-                    # these actions complain if you give them a "type" arg 🙄
-                    if meta.get("action") not in ("store_true", "store_false")
-                    else {}
-                ),
-                **meta,
+            meta.setdefault("dest", fld.name) if "opts" in meta else None
+            meta.setdefault("type", fld.type)
+            meta.setdefault("opts", [fld.name])
+            group = groups[meta.pop("exgroup")] if "exgroup" in meta else parser
+            group.add_argument(
+                *meta.pop("opts"),
+                **{k: v for k, v in meta.items() if v is not None},
             )
         try:
             return cls(**parser.parse_args(argv).__dict__)  # type: ignore
